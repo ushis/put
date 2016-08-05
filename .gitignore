@@ -1,0 +1,6 @@
+# Vim
+*.swp
+*.swo
+
+# Binary
+/putd

@@ -1,0 +1,358 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>put</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font: .9em/160% sans-serif;
+        color: #222;
+      }
+      a {
+        color: #4183c4;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      p {
+        margin: 15px 0;
+      }
+      code, textarea {
+        font: .9em/140% 'Consolas', 'Liberation Mono', 'Courier', monospace;
+        color: #333;
+      }
+      pre, textarea, .submit {
+        padding: 6px 10px;
+      }
+      pre, p code, textarea, .submit {
+        background-color: #f8f8f8;
+        border: 1px solid #ccc;
+        border-radius: 2px;
+        overflow: auto;
+      }
+      p code {
+        margin: 0 2px;
+        padding: 1px 5px;
+        white-space: nowrap;
+      }
+      textarea {
+        width: 100%;
+        min-height: 160px;
+        box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        resize: vertical;
+        outline: none;
+      }
+      textarea:focus {
+        background-color: #f0f0f0;
+      }
+      .submit {
+        display: none;
+        float: right;
+        font-size: .9em;
+        cursor: pointer;
+        padding: 2px 9px;
+      }
+      .submit.active {
+        display: block;
+      }
+      .submit:hover {
+        background-color: #e8e8e8;
+      }
+      h2 {
+        line-height: 180%;
+        border-bottom: 1px solid #ccc;
+      }
+      #wrapper {
+        width: 650px;
+        margin: auto;
+      }
+      ul {
+        margin: 10px 0 50px 0;
+        padding: 0;
+        list-style-type: none;
+      }
+      ul li {
+        margin-bottom: 16px;
+        line-height: 1.8em;
+      }
+      ul li .foot {
+        position: relative;
+      }
+      ul li .foot .gutter {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        background-color: #e0e0e0;
+      }
+      ul li .foot.error {
+        color: #f22;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrapper">
+      <h2>
+        Do it like the ql kids.
+      </h2>
+      <p>
+        Upload a file.
+      </p>
+      <pre><code>% curl -T path/to/file https://put.honkgong.info</code></pre>
+      <p>
+        Or some arbitrary data.
+      </p>
+      <pre><code>% cat file1 file2 | curl --data-binary @- https://put.honkgong.info</code></pre>
+      <h2>
+        Do it like the really ql kids.
+      </h2>
+      <p>
+        Tune your <code>~/.zshrc</code> with
+        <a href="https://gist.github.com/ushis/5354917">this</a> and upload
+        some files with your brand new <code>put</code> command.
+      </p>
+      <pre><code>% put file1 file2</code></pre>
+      <p>
+        Or some arbitrary data.
+      </p>
+      <pre><code>% cat file1 file2 | put</code></pre>
+      <h2>
+        Do it like the lazy kids.
+      </h2>
+      <p>
+        Just <strong>throw some files on this page</strong> or use the textarea
+        below to paste some arbitrary data.
+      </p>
+      <div>
+        <textarea></textarea>
+      </div>
+      <div>
+        <div class="submit">PUT</div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        // Prepare the scroller.
+        var scroller = new (function() {
+          this.el;
+          this.queue = [];
+
+          // Scrolls a element into the view.
+          this.scrollTo = function(el) {
+            // Enqueue the element, if we scroll already.
+            if (this.el !== undefined) {
+              return this.queue.push(el);
+            }
+            this.el = el;
+
+            var interval, self = this;
+
+            interval = window.setInterval(function() {
+              var w1 = window.scrollY;
+              var w2 = w1 + window.innerHeight;
+              var e1 = self.el.offsetTop - 10;
+              var e2 = e1 + self.el.offsetHeight + 20;
+
+              // We have to scroll up.
+              if (w1 > e1 && w2 > e2) {
+                return window.scrollBy(0, -25);
+              }
+
+              // We have to scroll down.
+              if (w2 < e2 && w1 < e1) {
+                return window.scrollBy(0, 25);
+              }
+
+              // grab the next element.
+              self.el = self.queue.shift();
+
+              // We finished.
+              if (self.el === undefined) {
+                window.clearInterval(interval);
+              }
+            }, 10);
+          };
+        })();
+
+        // Prepare the ul.
+        var ul = new (function() {
+          this.el = document.createElement('ul');
+          this.el.innerHTML = window.localStorage.getItem('ul');
+
+          // Pushes a new li on to the ul.
+          this.push = function(li) {
+            this.el.insertBefore(li, this.el.firstChild);
+          };
+
+          // Persists the ul.
+          this.save = function() {
+            window.localStorage.setItem('ul', this.el.innerHTML);
+          };
+
+          // Get rid of old lis.
+          var expired = new Date();
+          expired.setDate(expired.getDate() - 3);
+
+          var childs = this.el.querySelectorAll('li')
+
+          for (var i = 0; i < childs.length; i++) {
+            if (new Date(childs[i].dataset.time) < expired) {
+              this.el.removeChild(childs[i]);
+            }
+          }
+          this.save();
+
+          // Append me.
+          document.getElementById('wrapper').appendChild(this.el);
+        });
+
+        // Li class.
+        var Li = function(name) {
+          var title = document.createElement('strong');
+          title.textContent = name;
+
+          this.progress = document.createElement('span');
+          this.progress.classList.add('progress');
+
+          var head = document.createElement('div');
+          head.classList.add('head');
+          head.appendChild(title);
+          head.appendChild(this.progress);
+
+          this.gutter = document.createElement('div');
+          this.gutter.classList.add('gutter');
+
+          this.foot = document.createElement('pre');
+          this.foot.classList.add('foot');
+          this.foot.appendChild(this.gutter);
+
+          this.el = document.createElement('li');
+          this.el.dataset.time = new Date();
+          this.el.appendChild(head);
+          this.el.appendChild(this.foot);
+
+          // Sets the progress.
+          this.prog = function(load, tot) {
+            this.progress.textContent = ' (' + load + '/' + tot + ')';
+            this.gutter.style.width = ((tot > 0) ? (load * 100) / tot : 0) + '%';
+          };
+
+          // Yay!
+          this.success = function(url) {
+            var a = document.createElement('a');
+            a.href = url;
+            a.textContent = url;
+            this.foot.appendChild(a);
+            this.foot.removeChild(this.gutter);
+            this.ready();
+          };
+
+          // Noo!
+          this.error = function(msg) {
+            this.foot.classList.add('error');
+            this.foot.textContent = msg;
+            this.ready();
+          };
+
+          // I'm ready.
+          this.ready = function() {
+            scroller.scrollTo(this.el);
+            ul.save();
+          };
+
+          // Set the initial progress.
+          this.prog(0, 0);
+
+          // Append it to the list.
+          ul.push(this.el);
+
+          // Scroll it into the view.
+          scroller.scrollTo(this.el);
+        };
+
+        // Send
+        var send = function(f, name) {
+          // Prepare a new li.
+          var li = new Li(name);
+
+          // Don't send empty files.
+          if (f.size == 0) {
+            li.prog(0, 0);
+            return li.error('This file is too small.');
+          }
+
+          // 4MB limit.
+          if (f.size >= 4194304) {
+            li.prog(0, f.size);
+            return li.error('This file is too large.');
+          }
+
+          // Prepare XHR.
+          var xhr = new XMLHttpRequest();
+          xhr.open('PUT', '/', true);
+          xhr.reponseType = 'text';
+
+          xhr.upload.addEventListener('progress', function(e) {
+            li.prog(e.loaded, e.total);
+          });
+          xhr.addEventListener('load', function(r) {
+            if (this.status != 200) {
+              li.error('Something went wrong.');
+            } else {
+              li.success(this.responseText);
+            }
+          });
+          xhr.send(f);
+        };
+
+        // Stop everything.
+        var stopEverything = function(e) {
+          e.stopPropagation();
+          e.preventDefault();
+        };
+
+        // Prepare the body.
+        var body = document.body;
+        body.addEventListener('dragenter', stopEverything);
+        body.addEventListener('dragleave', stopEverything);
+        body.addEventListener('dragover', stopEverything);
+
+        body.addEventListener('drop', function(e) {
+          stopEverything(e);
+
+          for (var i = 0; i < e.dataTransfer.files.length; i++) {
+            var f = e.dataTransfer.files.item(i);
+            send(f, f.name);
+          }
+        });
+
+        // Grab the submit box.
+        var submit = document.querySelector('div.submit');
+
+        // Prepare the textarea
+        var text = document.querySelector('textarea');
+
+        text.addEventListener('input', function(e) {
+          if (this.value.trim().length > 0) {
+            submit.classList.add('active');
+          } else {
+            submit.classList.remove('active');
+          }
+        });
+        submit.addEventListener('click', function(e) {
+          submit.classList.remove('active');
+          var name = text.value.trim().split('\n').shift();
+
+          if (name.length > 33) {
+            name = name.substr(0, 30) + '...';
+          }
+          send(new Blob([text.value]), name);
+        });
+      }).call(this);
+    </script>
+  </body>
+</html>
