@@ -17,7 +17,7 @@ dependencies:
 
 test:
   override:
-    - go build -v -a .
+    - go build -v -a putd.go
     - docker build -t ushi/put .
 
 deployment:
