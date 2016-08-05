@@ -9,4 +9,4 @@ USER 1
 
 EXPOSE 8080
 
-CMD putd -listen :8080
+CMD putd -listen :8080 -root /srv/http
