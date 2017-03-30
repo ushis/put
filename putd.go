@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/minio/minio-go"
+	"github.com/minio/minio-go/pkg/policy"
 	"github.com/pborman/uuid"
 	"net"
 	"net/http"
@@ -84,15 +86,21 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	ok, err := s3Client.BucketExists(s3Bucket)
 
-	if err := s3Client.BucketExists(s3Bucket); err != nil {
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if !ok {
 		if err := s3Client.MakeBucket(s3Bucket, s3Region); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
 
-	if err := s3Client.SetBucketPolicy(s3Bucket, "", minio.BucketPolicyReadOnly); err != nil {
+	if err := s3Client.SetBucketPolicy(s3Bucket, "", policy.BucketPolicyReadOnly); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -104,7 +112,11 @@ func main() {
 	}
 	defer l.Close()
 
-	go http.Serve(l, NewRequestHandler(rootDir, s3Client, s3Endpoint, s3Bucket))
+	mux := http.NewServeMux()
+	mux.Handle("/", NewRequestHandler(rootDir, s3Client, s3Endpoint, s3Bucket))
+	mux.Handle("/health", NewHealthHandler(s3Client, s3Bucket))
+
+	go http.Serve(l, mux)
 
 	sig := make(chan os.Signal)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
@@ -157,5 +169,34 @@ func (rh *RequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := fmt.Fprintln(w, objectUrl.String()); err != nil {
 		fmt.Println("could respond with object url:", err)
+	}
+}
+
+type HealthHandler struct {
+	s3Client *minio.Client
+	s3Bucket string
+}
+
+type HealthPayload struct {
+	Status string `json:"status"`
+}
+
+func NewHealthHandler(s3Client *minio.Client, s3Bucket string) *HealthHandler {
+	return &HealthHandler{s3Client: s3Client, s3Bucket: s3Bucket}
+}
+
+func (hh *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	payload := &HealthPayload{Status: "ok"}
+	ok, err := hh.s3Client.BucketExists(hh.s3Bucket)
+
+	if err != nil {
+		payload.Status = fmt.Sprintf("critical: %s", err)
+	} else if !ok {
+		payload.Status = fmt.Sprintf("critical: bucket \"%s\" unavailable", hh.s3Bucket)
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		fmt.Println("could not respond with health payload:", err)
 	}
 }
