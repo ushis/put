@@ -1,6 +1,6 @@
 FROM alpine
 
-RUN apk update && apk add ca-certificates && mkdir /srv/http
+RUN apk add --no-cache ca-certificates && mkdir /srv/http
 
 COPY index.html /srv/http/index.html
 COPY putd /usr/local/bin/putd

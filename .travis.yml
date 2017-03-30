@@ -1,0 +1,32 @@
+---
+sudo: false
+
+language: go
+
+addons:
+  apt:
+    packages:
+      musl-tools
+
+go:
+  - 1.8
+
+env:
+  - CC=musl-gcc CXX=musl-gcc GOOS=linux GOARCH=amd64 CGO_ENABLED=1
+
+services:
+  - docker
+
+script:
+  - go build -v -a putd.go
+  - docker build -t ushi/put .
+
+before_deploy:
+  - docker login -u $DOCKER_USER -p $DOCKER_PASS
+
+deploy:
+  provider: script
+  skip_cleanup: true
+  script: docker push ushi/put
+  on:
+    branch: master
