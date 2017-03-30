@@ -19,14 +19,25 @@ services:
 
 script:
   - go build -v -a putd.go
-  - docker build -t ushi/put .
+  - docker build -t put .
 
 before_deploy:
+  - if test -n "${TRAVIS_TAG}"; then
+      docker tag put "ushi/put:${TRAVIS_TAG}";
+    else
+      docker tag put "ushi/put:latest";
+    fi
   - docker login -u $DOCKER_USER -p $DOCKER_PASS
 
+
 deploy:
-  provider: script
-  skip_cleanup: true
-  script: docker push ushi/put
-  on:
-    branch: master
+  - provider: script
+    skip_cleanup: true
+    script: docker push "ushi/put:${TRAVIS_TAG}"
+    on:
+      tags: true
+  - provider: script
+    skip_cleanup: true
+    script: docker push "ushi/put:latest"
+    on:
+      branch: master
