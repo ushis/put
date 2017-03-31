@@ -85,7 +85,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", NewRequestHandler(rootDir, &s3, metrics))
 	mux.Handle("/health", NewHealthHandler(&s3))
-	mux.Handle("/metrics", NewMetricsHandler(metrics))
+	mux.Handle("/metrics", NewMetricsHandler(metrics, &s3))
 
 	go http.Serve(l, mux)
 
@@ -141,6 +141,20 @@ func (s3 *S3) HealthCheck() error {
 		fmt.Errorf("bucket unavailable: %s", s3.bucket)
 	}
 	return nil
+}
+
+func (s3 *S3) Metrics() (count int64, size int64, err error) {
+	client, err := s3.client()
+
+	if err != nil {
+		return count, size, err
+	}
+
+	for obj := range client.ListObjects(s3.bucket, "", false, make(chan struct{})) {
+		count += 1
+		size += obj.Size
+	}
+	return count, size, err
 }
 
 func (s3 *S3) client() (client *minio.Client, err error) {
@@ -246,46 +260,54 @@ func (hh *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type Counter struct {
-	metrics.Counter
-}
-
-func NewCounter() Counter {
-	return Counter{metrics.NewCounter()}
-}
-
-func (c Counter) MarshalJSON() ([]byte, error) {
-	return json.Marshal(c.Count())
-}
-
 type Metrics struct {
-	Total   Counter `json:"total"`
-	Invalid Counter `json:"invalid"`
-	Failed  Counter `json:"failed"`
-	Success Counter `json:"success"`
+	Total   metrics.Counter
+	Invalid metrics.Counter
+	Failed  metrics.Counter
+	Success metrics.Counter
 }
 
 func NewMetrics() Metrics {
 	return Metrics{
-		Total:   NewCounter(),
-		Invalid: NewCounter(),
-		Failed:  NewCounter(),
-		Success: NewCounter(),
+		Total:   metrics.NewCounter(),
+		Invalid: metrics.NewCounter(),
+		Failed:  metrics.NewCounter(),
+		Success: metrics.NewCounter(),
 	}
 }
 
 type MetricsHandler struct {
 	metrics Metrics
+	s3      *S3
 }
 
-func NewMetricsHandler(metrics Metrics) *MetricsHandler {
-	return &MetricsHandler{metrics: metrics}
+type MetricsPayload struct {
+	RequestsTotal   int64 `json:"requests_total"`
+	RequestsInvalid int64 `json:"requests_invalid"`
+	RequestsFailed  int64 `json:"requests_failed"`
+	RequestsSuccess int64 `json:"requests_success"`
+	S3Objects       int64 `json:"s3_objects"`
+	S3Usage         int64 `json:"s3_usage"`
+}
+
+func NewMetricsHandler(metrics Metrics, s3 *S3) *MetricsHandler {
+	return &MetricsHandler{metrics: metrics, s3: s3}
 }
 
 func (mh *MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s3Objects, s3Usage, _ := mh.s3.Metrics()
+
+	payload := MetricsPayload{
+		RequestsTotal:   mh.metrics.Total.Count(),
+		RequestsInvalid: mh.metrics.Invalid.Count(),
+		RequestsFailed:  mh.metrics.Failed.Count(),
+		RequestsSuccess: mh.metrics.Success.Count(),
+		S3Objects:       s3Objects,
+		S3Usage:         s3Usage,
+	}
 	w.Header().Set("Content-Type", "application/json")
 
-	if err := json.NewEncoder(w).Encode(mh.metrics); err != nil {
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
 		fmt.Println("could not respond with metrics payload:", err)
 	}
 }
