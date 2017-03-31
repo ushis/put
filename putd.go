@@ -138,7 +138,7 @@ func (s3 *S3) HealthCheck() error {
 	}
 
 	if !ok {
-		fmt.Errorf("bucket unavailable: %s", s3.bucket)
+		return fmt.Errorf("bucket unavailable: %s", s3.bucket)
 	}
 	return nil
 }
