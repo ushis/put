@@ -18,6 +18,7 @@ services:
   - docker
 
 script:
+  - go vet *.go
   - go build -v -a putd.go
   - docker build -t put .
 
