@@ -111,14 +111,14 @@ type S3 struct {
 	accessKey string
 }
 
-func (s3 *S3) Put(name, content_type string, body io.Reader) (string, error) {
+func (s3 *S3) Put(name, contentType string, body io.Reader) (string, error) {
 	client, err := s3.client()
 
 	if err != nil {
 		return "", err
 	}
 
-	if _, err := client.PutObject(s3.bucket, name, body, content_type); err != nil {
+	if _, err := client.PutObject(s3.bucket, name, body, contentType); err != nil {
 		return "", err
 	}
 	s3.url.Path = path.Join(s3.bucket, name)
