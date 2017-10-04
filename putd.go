@@ -117,7 +117,7 @@ func (s3 *S3) Put(name, contentType string, body io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	meta := &minio.PutObjectOptions{ContentType: contentType}
+	meta := minio.PutObjectOptions{ContentType: contentType}
 
 	if _, err := client.PutObject(s3.bucket, name, body, -1, meta); err != nil {
 		return "", err
