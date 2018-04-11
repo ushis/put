@@ -184,7 +184,7 @@ func (s3 *S3) client() (client *minio.Client, err error) {
 		}
 	}
 
-	if err := client.SetBucketPolicy(s3.bucket, "", policy.BucketPolicyReadOnly); err != nil {
+	if err := client.SetBucketPolicy(s3.bucket, policy.BucketPolicyReadOnly); err != nil {
 		return nil, err
 	}
 
