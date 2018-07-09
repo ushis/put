@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strconv"
 	"syscall"
 )
 
@@ -25,7 +26,6 @@ var (
 )
 
 func init() {
-	flag.StringVar(&rootDir, "root", "", "http root directory (default: .)")
 	flag.StringVar(&listenAddr, "listen", "", "address to listen to (default: :8080)")
 	flag.StringVar(&s3.endpoint, "s3-endpoint", "", "s3 endpoint")
 	flag.StringVar(&s3.region, "s3-region", "", "s3 region")
@@ -36,14 +36,6 @@ func init() {
 
 func main() {
 	flag.Parse()
-
-	if len(rootDir) == 0 {
-		listenAddr = os.Getenv("PUT_ROOT")
-	}
-
-	if len(rootDir) == 0 {
-		rootDir = "."
-	}
 
 	if len(listenAddr) == 0 {
 		listenAddr = os.Getenv("PUT_LISTEN")
@@ -83,7 +75,7 @@ func main() {
 	metrics := NewMetrics()
 
 	mux := http.NewServeMux()
-	mux.Handle("/", NewRequestHandler(rootDir, &s3, metrics))
+	mux.Handle("/", NewRequestHandler(&s3, metrics))
 	mux.Handle("/health", NewHealthHandler(&s3))
 	mux.Handle("/metrics", NewMetricsHandler(metrics, &s3))
 
@@ -193,22 +185,20 @@ func (s3 *S3) client() (client *minio.Client, err error) {
 }
 
 type RequestHandler struct {
-	s3         *S3
-	metrics    Metrics
-	fileServer http.Handler
+	s3      *S3
+	metrics Metrics
 }
 
-func NewRequestHandler(rootDir string, s3 *S3, metrics Metrics) *RequestHandler {
+func NewRequestHandler(s3 *S3, metrics Metrics) *RequestHandler {
 	return &RequestHandler{
-		s3:         s3,
-		metrics:    metrics,
-		fileServer: http.FileServer(http.Dir(rootDir)),
+		s3:      s3,
+		metrics: metrics,
 	}
 }
 
 func (rh *RequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		rh.fileServer.ServeHTTP(w, r)
+		rh.ServeIndex(w)
 		return
 	}
 	rh.metrics.Total.Inc(1)
@@ -230,10 +220,26 @@ func (rh *RequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := fmt.Fprintln(w, objectUrl); err != nil {
 		rh.metrics.Failed.Inc(1)
-		fmt.Println("could respond with object url:", err)
+		fmt.Println("could not respond with object url:", err)
 		return
 	}
 	rh.metrics.Success.Inc(1)
+}
+
+func (rh *RequestHandler) ServeIndex(w http.ResponseWriter) {
+	asset, err := indexHtml()
+
+	if err != nil {
+		fmt.Println("could not fetch index.html:", err)
+		http.Error(w, "internal server error", 500)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Length", strconv.FormatInt(asset.info.Size(), 10))
+	w.Header().Set("Last-Modified", asset.info.ModTime().Format(http.TimeFormat))
+
+	if _, err = w.Write(asset.bytes); err != nil {
+		fmt.Println("could not send index.html:", err)
+	}
 }
 
 type HealthHandler struct {

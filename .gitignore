@@ -2,5 +2,8 @@
 *.swp
 *.swo
 
+# Generated bindata
+/bindata.go
+
 # Binary
 /putd
