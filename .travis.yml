@@ -1,44 +1,28 @@
----
 sudo: false
 
 language: go
 
-addons:
-  apt:
-    packages:
-      musl-tools
-
 go:
-  - 1.9
+  - '1.10.x'
 
 env:
-  - CC=musl-gcc CXX=musl-gcc GOOS=linux GOARCH=amd64 CGO_ENABLED=1
+  - GOOS=linux GOARCH=amd64
 
-services:
-  - docker
+install:
+  - go get -u github.com/go-bindata/go-bindata/...
+  - go-bindata index.html
+  - go get -v -d -t ./...
 
 script:
   - go vet *.go
-  - go build -v -a putd.go
-  - docker build -t put .
-
-before_deploy:
-  - if test -n "${TRAVIS_TAG}"; then
-      docker tag put "ushi/put:${TRAVIS_TAG}";
-    else
-      docker tag put "ushi/put:latest";
-    fi
-  - docker login -u $DOCKER_USER -p $DOCKER_PASS
-
+  - go build -v -a -o putd .
 
 deploy:
-  - provider: script
-    skip_cleanup: true
-    script: docker push "ushi/put:${TRAVIS_TAG}"
-    on:
-      tags: true
-  - provider: script
-    skip_cleanup: true
-    script: docker push "ushi/put:latest"
-    on:
-      branch: master
+  provider: releases
+  skip_cleanup: true
+  api_key:
+    secure: vMR6wDYIVGjaGlfitGxzX0v4+ZJn6YehV0XTgZMTd46V1orXJrwfZ6TjtCsTkAPgJn0vKNSjjscyO46wpK3gVRywaGw4FnOIiEZwMu+UjFKRrliUi+8OlPrwxAq+6knIjw9Swr64glXhVTqGaJIGOEmG6/UpU1O04XTLk1l0fQJtlDkr9TbZEPeRRnnNQlNHylEyVPI/QcB5RfV54U28pX6x/HBUPoGv090xVWarG4+TMc4PXFeewR76jQAchr/A4cmBhtmyDFjjwFKPSOG3gZUVyPKS/5fKhf50BLHHoIxeCaIeHZeQyw0NG71aqc7pCLVD1mak71iQnfs4GJvqn2aiM97QNZ1pINanKvCYpmlZ1OqSz35Q7uODvbXnMhayv7RcLHhbBdWY8y23oC+h2vFzTwqsMBTFHWTtdF0fCKHJtSkKNIuOcpiQiWQ6W4STI5FSPY1ivGqHuHFI7ZquFd2FJJTRMIRgq6RYTz96c2da9enPquzNypGexd5pvHeaLQv25W9seTdNH0P5FT94eMxRov1QV10cdjqN3kvFstGrZQN/S4FXaUfOiRJtombBF6bkCIu2LsXB/Ef1N5GGdutWmbnulBUGEQxkLDkDpjCmzQYuOCnM7DOrSK4x4mRwWhVeLi0wQ1rtIhBmKJNFzcLd2D9ZOkDLYweMmKGBfG0=
+  file: putd
+  on:
+    repo: ushis/put
+    tags: true
